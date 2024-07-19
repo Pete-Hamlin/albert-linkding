@@ -7,8 +7,8 @@ from urllib import parse
 import requests
 from albert import *
 
-md_iid = "2.1"
-md_version = "3.0"
+md_iid = "2.3"
+md_version = "3.1"
 md_name = "Linkding"
 md_description = "Manage saved bookmarks via a linkding instance"
 md_license = "MIT"
@@ -41,10 +41,10 @@ class Plugin(PluginInstance, IndexQueryHandler):
     user_agent = "org.albert.linkding"
 
     def __init__(self):
+        PluginInstance.__init__(self)
         IndexQueryHandler.__init__(
-            self, id=md_id, name=md_name, description=md_description, synopsis="<link-title>", defaultTrigger="ld "
+            self, id=self.id, name=self.name, description=self.description, synopsis="<link>", defaultTrigger="ld "
         )
-        PluginInstance.__init__(self, extensions=[self])
 
         self._instance_url = self.readConfig("instance_url", str) or "http://localhost:9090"
         self._api_key = self.readConfig("api_key", str) or ""
@@ -53,7 +53,7 @@ class Plugin(PluginInstance, IndexQueryHandler):
         self._thread = LinkFetcherThread(callback=self.updateIndexItems, cache_length=self._cache_length)
         self._thread.start()
 
-    def finalize(self):
+    def __del__(self):
         self._thread.stop()
         self._thread.join()
 
@@ -115,42 +115,33 @@ class Plugin(PluginInstance, IndexQueryHandler):
         self.setIndexItems(index_items)
         info("Indexed {} links [{:d} ms]".format(len(index_items), (int(perf_counter_ns() - start) // 1000000)))
 
-    # def handleTriggerQuery(self, query):
-    #     stripped = query.string.strip()
-    #     if stripped:
-    #         # avoid spamming server
-    #         for _ in range(50):
-    #             sleep(0.01)
-    #             if not query.isValid:
-    #                 return
 
-    #         data = self.get_results()
-    #         articles = (item for item in data if stripped in self.create_filters(item))
-    #         items = [item for item in self.gen_items(articles)]
-    #         query.add(items)
-    #     else:
-    #         query.add(
-    #             StandardItem(
-    #                 id=md_id, text=md_name, subtext="Search for an article saved via Linkding", iconUrls=self.iconUrls
-    #             )
-    #         )
-    #         if self._cache_results:
-    #             query.add(
-    #                 StandardItem(
-    #                     id=md_id,
-    #                     text="Refresh cache",
-    #                     subtext="Refresh cached articles",
-    #                     iconUrls=["xdg:view-refresh"],
-    #                     actions=[Action("refresh", "Refresh article cache", lambda: self.refresh_cache())],
-    #                 )
-    #             )
+    def handleTriggerQuery(self, query):
+        stripped = query.string.strip()
+        if stripped:
+            TriggerQueryHandler.handleTriggerQuery(self, query)
+            query.add(
+                StandardItem(
+                    text="Refresh cache index",
+                    subtext="Refresh indexed links",
+                    iconUrls=["xdg:view-refresh"],
+                    actions=[Action("refresh", "Refresh Linkding index", lambda: self.updateIndexItems())],
+                )
+            )
+        else:
+            query.add(
+                StandardItem(
+                    text=self.name, subtext="Search for an article saved in Linkding", iconUrls=self.iconUrls
+                )
+            )
+
 
     def _create_filters(self, item: dict):
         return ",".join([item["url"], item["title"], ",".join(tag for tag in item["tag_names"])])
 
-    def _gen_item(self, link: object):
+    def _gen_item(self, link: dict):
         return StandardItem(
-            id=md_id,
+            id=self.id,
             text=link["title"] or link["url"],
             subtext="{}: {}".format(",".join(tag for tag in link["tag_names"]), link["url"]),
             iconUrls=self.iconUrls,
@@ -168,7 +159,7 @@ class Plugin(PluginInstance, IndexQueryHandler):
         url = f"{self._instance_url}/api/bookmarks/?{parse.urlencode(params)}"
         return (link for link_list in self._get_links(url, headers) for link in link_list)
 
-    def _get_links(self, url: str, headers: dict):
+    def _get_links(self, url: str| None, headers: dict):
         while url:
             response = requests.get(url, headers=headers, timeout=5)
             if response.ok:
@@ -176,6 +167,7 @@ class Plugin(PluginInstance, IndexQueryHandler):
                 url = result["next"]
                 yield result["results"]
             else:
+                url = None
                 warning(f"Got response {response.status_code} querying {url}")
 
     def _delete_link(self, link_id: str):
