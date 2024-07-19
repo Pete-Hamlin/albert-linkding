@@ -37,7 +37,7 @@ class LinkFetcherThread(Thread):
 
 class Plugin(PluginInstance, IndexQueryHandler):
     iconUrls = [f"file:{Path(__file__).parent}/linkding.png"]
-    limit = 50
+    limit = 250
     user_agent = "org.albert.linkding"
 
     def __init__(self):
