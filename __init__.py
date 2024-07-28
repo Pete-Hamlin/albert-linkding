@@ -120,20 +120,20 @@ class Plugin(PluginInstance, IndexQueryHandler):
         stripped = query.string.strip()
         if stripped:
             TriggerQueryHandler.handleTriggerQuery(self, query)
-            query.add(
-                StandardItem(
-                    text="Refresh cache index",
-                    subtext="Refresh indexed links",
-                    iconUrls=["xdg:view-refresh"],
-                    actions=[Action("refresh", "Refresh Linkding index", lambda: self.updateIndexItems())],
-                )
-            )
         else:
             query.add(
                 StandardItem(
                     text=self.name, subtext="Search for an article saved in Linkding", iconUrls=self.iconUrls
                 )
             )
+        query.add(
+            StandardItem(
+                text="Refresh cache index",
+                subtext="Refresh indexed links",
+                iconUrls=["xdg:view-refresh"],
+                actions=[Action("refresh", "Refresh Linkding index", lambda: self.updateIndexItems())],
+            )
+        )
 
 
     def _create_filters(self, item: dict):
