@@ -8,7 +8,7 @@ import requests
 from albert import *
 
 md_iid = "2.3"
-md_version = "3.1"
+md_version = "3.2"
 md_name = "Linkding"
 md_description = "Manage saved bookmarks via a linkding instance"
 md_license = "MIT"
@@ -176,7 +176,7 @@ class Plugin(PluginInstance, IndexQueryHandler):
         debug("About to DELETE {}".format(url))
         response = requests.delete(url, headers=headers)
         if response.ok:
-            self.refresh_cache()
+            self.updateIndexItems()
         else:
             warning("Got response {}".format(response))
 
@@ -186,6 +186,6 @@ class Plugin(PluginInstance, IndexQueryHandler):
         debug("About to POST {}".format(url))
         response = requests.post(url, headers=headers)
         if response.ok:
-            self.refresh_cache()
+            self.updateIndexItems()
         else:
             warning("Got response {}".format(response))
