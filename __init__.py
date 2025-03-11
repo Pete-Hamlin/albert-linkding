@@ -7,8 +7,8 @@ from urllib import parse
 import requests
 from albert import *
 
-md_iid = "2.3"
-md_version = "3.2"
+md_iid = "3.0"
+md_version = "3.3"
 md_name = "Linkding"
 md_description = "Manage saved bookmarks via a linkding instance"
 md_license = "MIT"
@@ -42,9 +42,7 @@ class Plugin(PluginInstance, IndexQueryHandler):
 
     def __init__(self):
         PluginInstance.__init__(self)
-        IndexQueryHandler.__init__(
-            self, id=self.id, name=self.name, description=self.description, synopsis="<link>", defaultTrigger="ld "
-        )
+        IndexQueryHandler.__init__(self)
 
         self._instance_url = self.readConfig("instance_url", str) or "http://localhost:9090"
         self._api_key = self.readConfig("api_key", str) or ""
@@ -56,6 +54,9 @@ class Plugin(PluginInstance, IndexQueryHandler):
     def __del__(self):
         self._thread.stop()
         self._thread.join()
+
+    def defaultTrigger(self):
+        return "ld "
 
     @property
     def instance_url(self):
@@ -122,9 +123,7 @@ class Plugin(PluginInstance, IndexQueryHandler):
             TriggerQueryHandler.handleTriggerQuery(self, query)
         else:
             query.add(
-                StandardItem(
-                    text=self.name, subtext="Search for an article saved in Linkding", iconUrls=self.iconUrls
-                )
+                StandardItem( text=md_name, subtext="Search for an article saved in Linkding", iconUrls=self.iconUrls)
             )
         query.add(
             StandardItem(
@@ -141,7 +140,7 @@ class Plugin(PluginInstance, IndexQueryHandler):
 
     def _gen_item(self, link: dict):
         return StandardItem(
-            id=self.id,
+            id=str(self.id),
             text=link["title"] or link["url"],
             subtext="{}: {}".format(",".join(tag for tag in link["tag_names"]), link["url"]),
             iconUrls=self.iconUrls,
@@ -159,7 +158,7 @@ class Plugin(PluginInstance, IndexQueryHandler):
         url = f"{self._instance_url}/api/bookmarks/?{parse.urlencode(params)}"
         return (link for link_list in self._get_links(url, headers) for link in link_list)
 
-    def _get_links(self, url: str| None, headers: dict):
+    def _get_links(self, url: str | None, headers: dict):
         while url:
             response = requests.get(url, headers=headers, timeout=5)
             if response.ok:
@@ -167,8 +166,8 @@ class Plugin(PluginInstance, IndexQueryHandler):
                 url = result["next"]
                 yield result["results"]
             else:
-                url = None
                 warning(f"Got response {response.status_code} querying {url}")
+                url = None
 
     def _delete_link(self, link_id: str):
         url = f"{self._instance_url}/api/bookmarks/{link_id}"
