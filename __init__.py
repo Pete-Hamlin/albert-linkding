@@ -8,7 +8,7 @@ import requests
 from albert import *
 
 md_iid = "3.0"
-md_version = "3.3"
+md_version = "3.4"
 md_name = "Linkding"
 md_description = "Manage saved bookmarks via a linkding instance"
 md_license = "MIT"
@@ -25,6 +25,7 @@ class LinkFetcherThread(Thread):
         self.__cache_length = cache_length * 60
 
     def run(self):
+        self.__callback()
         while True:
             self.__stop_event.wait(self.__cache_length)
             if self.__stop_event.is_set():
@@ -44,11 +45,13 @@ class Plugin(PluginInstance, IndexQueryHandler):
         PluginInstance.__init__(self)
         IndexQueryHandler.__init__(self)
 
+        self._index_items = []
+
         self._instance_url = self.readConfig("instance_url", str) or "http://localhost:9090"
         self._api_key = self.readConfig("api_key", str) or ""
         self._cache_length = self.readConfig("cache_length", int) or 15
 
-        self._thread = LinkFetcherThread(callback=self.updateIndexItems, cache_length=self._cache_length)
+        self._thread = LinkFetcherThread(callback=self.fetchIndexItems, cache_length=self._cache_length)
         self._thread.start()
 
     def __del__(self):
@@ -90,7 +93,7 @@ class Plugin(PluginInstance, IndexQueryHandler):
         if self._thread.is_alive():
             self._thread.stop()
             self._thread.join()
-        self._thread = LinkFetcherThread(callback=self.updateIndexItems, cache_length=self._cache_length)
+        self._thread = LinkFetcherThread(callback=self.fetchIndexItems, cache_length=self._cache_length)
         self._thread.start()
 
     def configWidget(self):
@@ -106,15 +109,18 @@ class Plugin(PluginInstance, IndexQueryHandler):
         ]
 
     def updateIndexItems(self):
+        self.setIndexItems(self._index_items)
+
+    def fetchIndexItems(self):
         start = perf_counter_ns()
         data = self._fetch_results()
-        index_items = []
         for link in data:
             filter = self._create_filters(link)
             item = self._gen_item(link)
-            index_items.append(IndexItem(item=item, string=filter))
-        self.setIndexItems(index_items)
-        info("Indexed {} links [{:d} ms]".format(len(index_items), (int(perf_counter_ns() - start) // 1000000)))
+            self._index_items.append(IndexItem(item=item, string=filter))
+        self.updateIndexItems()
+        info("Indexed {} links [{:d} ms]".format(len(self._index_items), (int(perf_counter_ns() - start) // 1000000)))
+        self._index_items = []
 
 
     def handleTriggerQuery(self, query):
@@ -130,7 +136,7 @@ class Plugin(PluginInstance, IndexQueryHandler):
                 text="Refresh cache index",
                 subtext="Refresh indexed links",
                 iconUrls=["xdg:view-refresh"],
-                actions=[Action("refresh", "Refresh Linkding index", lambda: self.updateIndexItems())],
+                actions=[Action("refresh", "Refresh Linkding index", lambda: self.fetchIndexItems())],
             )
         )
 
@@ -175,7 +181,7 @@ class Plugin(PluginInstance, IndexQueryHandler):
         debug("About to DELETE {}".format(url))
         response = requests.delete(url, headers=headers)
         if response.ok:
-            self.updateIndexItems()
+            self.fetchIndexItems()
         else:
             warning("Got response {}".format(response))
 
@@ -185,6 +191,6 @@ class Plugin(PluginInstance, IndexQueryHandler):
         debug("About to POST {}".format(url))
         response = requests.post(url, headers=headers)
         if response.ok:
-            self.updateIndexItems()
+            self.fetchIndexItems()
         else:
             warning("Got response {}".format(response))
