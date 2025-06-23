@@ -8,7 +8,7 @@ import requests
 from albert import *
 
 md_iid = "3.0"
-md_version = "3.4"
+md_version = "3.4.0"
 md_name = "Linkding"
 md_description = "Manage saved bookmarks via a linkding instance"
 md_license = "MIT"
